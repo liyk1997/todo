@@ -3,6 +3,7 @@
     "target": "esnext",
     "module": "esnext",
     "strict": true,
+    "noImplicitAny": false,
     "jsx": "preserve",
     "importHelpers": true,
     "moduleResolution": "node",
@@ -14,7 +15,9 @@
     "baseUrl": ".",
     "types": [
       "webpack-env",
-      "@dcloudio/types"
+      "@dcloudio/types",
+      "@types/uni-app",
+      "@types/html5plus"
     ],
     "paths": {
       "@/*": [

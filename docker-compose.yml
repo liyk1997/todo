@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  todo-app:
+    build: .
+    ports:
+      - "80:80"      # Nginx前端服务
+      - "8000:8000"  # 后端API服务（可选，用于直接访问）
+    volumes:
+      - todo_data:/app/backend  # 持久化数据库文件
+    environment:
+      - PYTHONPATH=/app/backend
+    restart: unless-stopped
+    container_name: todo-fullstack
+
+volumes:
+  todo_data:
+    driver: local

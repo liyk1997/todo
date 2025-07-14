@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo应用 - H5版本</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .add-todo {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .todo-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .todo-input:focus {
+            border-color: #667eea;
+        }
+        
+        .add-btn {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+        
+        .add-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .todo-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .todo-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: background-color 0.2s;
+        }
+        
+        .todo-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .todo-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .todo-checkbox.completed {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+        }
+        
+        .todo-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .todo-text {
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .todo-text.completed {
+            text-decoration: line-through;
+            color: #999;
+        }
+        
+        .todo-meta {
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .todo-meta.completed {
+            color: #999;
+        }
+        
+        .delete-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+        
+        .delete-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        
+        .stats {
+            padding: 20px;
+            background: #f8f9fa;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* 登录页面样式 */
+        .login-form {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .welcome-text {
+            margin-bottom: 30px;
+        }
+        
+        .welcome-text h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        
+        .welcome-text p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .logout-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+            transition: background-color 0.2s;
+        }
+        
+        .logout-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <!-- 登录页面 -->
+    <div class="container" id="loginContainer">
+        <div class="header">
+            <h1>📝 Todo应用</h1>
+            <p>欢迎使用个人任务管理系统</p>
+        </div>
+        
+        <div class="login-form">
+            <div class="welcome-text">
+                <h2>👋 欢迎！</h2>
+                <p>请输入您的姓名开始使用</p>
+            </div>
+            <div class="input-group">
+                <input type="text" class="todo-input" placeholder="请输入您的姓名..." id="loginUserInput">
+                <button class="add-btn" onclick="login()">开始使用</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主应用页面 -->
+    <div class="container" id="appContainer" style="display: none;">
+        <div class="header">
+            <h1>📝 Todo应用</h1>
+            <p id="welcomeUser">欢迎，用户！</p>
+            <button class="logout-btn" onclick="logout()">切换用户</button>
+        </div>
+        
+        <div class="add-todo">
+            <div class="input-group">
+                <input type="text" class="todo-input" placeholder="添加新任务..." id="todoInput">
+                <button class="add-btn" onclick="addTodo()">添加</button>
+            </div>
+        </div>
+        
+        <div class="todo-list" id="todoList">
+            <div class="empty-state" id="emptyState">
+                <p>🎉 暂无任务，添加一个开始吧！</p>
+            </div>
+        </div>
+        
+        <div class="stats" id="stats">
+            总计: 0 个任务 | 已完成: 0 个
+        </div>
+    </div>
+    
+    <script>
+        let todos = [];
+        let currentUser = '';
+        
+        // 页面加载时初始化
+        window.onload = function() {
+            loadTodos();
+            checkLoginStatus();
+        };
+        
+        // 检查登录状态
+        function checkLoginStatus() {
+            const savedUser = localStorage.getItem('todoAppUser');
+            if (savedUser) {
+                currentUser = savedUser;
+                showApp();
+            } else {
+                showLogin();
+            }
+        }
+        
+        // 显示登录页面
+        function showLogin() {
+            document.getElementById('loginContainer').style.display = 'block';
+            document.getElementById('appContainer').style.display = 'none';
+        }
+        
+        // 显示主应用页面
+        function showApp() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'block';
+            document.getElementById('welcomeUser').textContent = `欢迎，${currentUser}！`;
+            renderTodos();
+        }
+        
+        // 登录函数
+        function login() {
+            const userInput = document.getElementById('loginUserInput');
+            const username = userInput.value.trim();
+            
+            if (!username) {
+                alert('请输入您的姓名！');
+                return;
+            }
+            
+            currentUser = username;
+            localStorage.setItem('todoAppUser', currentUser);
+            showApp();
+        }
+        
+        // 登出函数
+        function logout() {
+            if (confirm('确定要切换用户吗？')) {
+                currentUser = '';
+                localStorage.removeItem('todoAppUser');
+                document.getElementById('loginUserInput').value = '';
+                showLogin();
+            }
+        }
+        
+        function loadTodos() {
+            todos = JSON.parse(localStorage.getItem('todos')) || [];
+        }
+        
+        function saveTodos() {
+            localStorage.setItem('todos', JSON.stringify(todos));
+        }
+        
+        function addTodo() {
+            const input = document.getElementById('todoInput');
+            const text = input.value.trim();
+            
+            if (text && currentUser) {
+                todos.push({
+                    id: Date.now(),
+                    text: text,
+                    completed: false,
+                    createdBy: currentUser,
+                    createdAt: new Date().toLocaleString('zh-CN'),
+                    completedAt: null,
+                    completedBy: null
+                });
+                
+                input.value = '';
+                saveTodos();
+                renderTodos();
+            }
+        }
+        
+        function toggleTodo(id) {
+            const todo = todos.find(t => t.id === id);
+            
+            if (todo && currentUser) {
+                if (!todo.completed) {
+                    // 标记为完成
+                    todo.completed = true;
+                    todo.completedAt = new Date().toLocaleString('zh-CN');
+                    todo.completedBy = currentUser;
+                } else {
+                    // 取消完成
+                    todo.completed = false;
+                    todo.completedAt = null;
+                    todo.completedBy = null;
+                }
+                saveTodos();
+                renderTodos();
+            }
+        }
+        
+        function deleteTodo(id) {
+            todos = todos.filter(t => t.id !== id);
+            saveTodos();
+            renderTodos();
+        }
+        
+        function renderTodos() {
+            const todoList = document.getElementById('todoList');
+            const emptyState = document.getElementById('emptyState');
+            const stats = document.getElementById('stats');
+            
+            if (todos.length === 0) {
+                todoList.innerHTML = '<div class="empty-state"><p>🎉 暂无任务，添加一个开始吧！</p></div>';
+            } else {
+                todoList.innerHTML = todos.map(todo => `
+                    <div class="todo-item">
+                        <div class="todo-checkbox ${todo.completed ? 'completed' : ''}" 
+                             onclick="toggleTodo(${todo.id})"></div>
+                        <div class="todo-content">
+                            <div class="todo-text ${todo.completed ? 'completed' : ''}">${todo.text}</div>
+                            <div class="todo-meta ${todo.completed ? 'completed' : ''}">
+                                <span>创建：${todo.createdBy} - ${todo.createdAt}</span>
+                                ${todo.completed && todo.completedBy ? `<span>完成：${todo.completedBy} - ${todo.completedAt}</span>` : ''}
+                            </div>
+                        </div>
+                        <button class="delete-btn" onclick="deleteTodo(${todo.id})">删除</button>
+                    </div>
+                `).join('');
+            }
+            
+            const completedCount = todos.filter(t => t.completed).length;
+            stats.textContent = `总计: ${todos.length} 个任务 | 已完成: ${completedCount} 个`;
+        }
+        
+        // 监听事件
+        document.addEventListener('DOMContentLoaded', function() {
+            // 登录输入框回车事件
+            const loginInput = document.getElementById('loginUserInput');
+            if (loginInput) {
+                loginInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        login();
+                    }
+                });
+            }
+            
+            // 任务输入框回车事件
+            const todoInput = document.getElementById('todoInput');
+            if (todoInput) {
+                todoInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addTodo();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
