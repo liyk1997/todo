@@ -1,5 +1,5 @@
-# todo
-
+# todo  
+多人使用 todo 列表
 ## Project setup
 ```
 npm install
