@@ -92,7 +92,7 @@
 				</view>
 				<view class="task-actions">
 					<text class="action-btn edit" @click="editTask(task)">编辑</text>
-					<text class="action-btn delete" @click="deleteTask(task.id)">删除</text>
+					<text class="action-btn delete" @click="deleteTaskHandler(task.id)">删除</text>
 				</view>
 			</view>
 		</view>
@@ -127,20 +127,19 @@
 					<text class="modal-close" @click="showSettingsModal = false">×</text>
 				</view>
 				<view class="settings-list">
-					<view class="setting-item" @click="switchUser">
-						<text class="setting-label">当前用户:</text>
-						<text class="setting-value">{{ userName }}</text>
-						<text class="setting-action">点击切换</text>
+					<view class="setting-item clickable" @click="switchUser">
+						<view class="setting-content">
+							<text class="setting-label">当前用户</text>
+							<text class="setting-value">{{ userName }}</text>
+						</view>
+						<text class="setting-arrow">></text>
 					</view>
+					
 					<view class="setting-item">
-						<text class="setting-label">当前环境:</text>
-						<picker @change="onEnvironmentChange" :value="environmentIndex" :range="environmentOptions">
-							<view class="picker">{{ environmentOptions[environmentIndex] }}</view>
-						</picker>
-					</view>
-					<view class="setting-item">
-						<text class="setting-label">轮询间隔:</text>
-						<text class="setting-value">{{ config.pollingInterval }}ms</text>
+						<view class="setting-content">
+							<text class="setting-label">轮询间隔</text>
+							<text class="setting-value">{{ config.pollingInterval }}ms</text>
+						</view>
 					</view>
 				</view>
 			</view>
@@ -150,6 +149,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import {
 	Task,
 	TaskCreate,
@@ -190,8 +190,7 @@ const showTrashModal = ref(false);
 const trashTasks = ref<Task[]>([]);
 const trashCount = ref(0);
 const showSettingsModal = ref(false);
-const environmentIndex = ref(0);
-const environmentOptions = ['开发环境', '生产环境', '本地环境'];
+
 const priorityIndex = ref(1);
 const priorityOptions = ['high', 'medium', 'low'];
 const priorityLabels = {
@@ -422,7 +421,7 @@ async function submitTask() {
         updateData.due_date = taskForm.value.due_date;
       }
 
-      await updateTask(editingTaskId.value, updateData);
+      await updateTask(parseInt(editingTaskId.value), updateData);
 
       uni.showToast({
         title: '更新成功',
@@ -478,6 +477,7 @@ async function addTask() {
     });
 
     newTask.value = '';
+    await loadTasks(); // 刷新任务列表
 
     uni.showToast({
       title: '添加成功',
@@ -494,7 +494,7 @@ async function addTask() {
 // 任务操作相关方法
 async function quickToggleTask(taskId: string) {
   try {
-    await toggleTask(taskId);
+    await toggleTask(parseInt(taskId));
     await loadTasks();
   } catch (error) {
     console.error('切换任务状态失败:', error);
@@ -507,9 +507,9 @@ async function quickToggleTask(taskId: string) {
 		
 async function toggleTask(taskId: string) {
   try {
-    const task = tasks.value.find(t => t.id === taskId);
+    const task = tasks.value.find(t => t.id === parseInt(taskId));
     if (task) {
-      await updateTask(taskId, {
+      await updateTask(parseInt(taskId), {
         completed: !task.completed,
       });
       await loadTasks();
@@ -537,9 +537,9 @@ function editTask(task: Task) {
   editingTaskId.value = task.id;
 }
 
-async function deleteTask(taskId: string) {
+async function deleteTaskHandler(taskId: string) {
   try {
-    await deleteTask(taskId, false); // 软删除
+    await deleteTask(parseInt(taskId), false); // 软删除
     await loadTasks();
     uni.showToast({
       title: '已移至垃圾桶',
@@ -571,7 +571,7 @@ async function showTrash() {
 		
 async function restoreTaskFromTrash(taskId: string) {
   try {
-    await restoreTask(taskId);
+    await restoreTask(parseInt(taskId));
     await showTrash(); // 刷新垃圾桶
     await loadTasks(); // 刷新任务列表
     uni.showToast({
@@ -594,7 +594,7 @@ async function permanentDeleteTask(taskId: string) {
     success: async (res) => {
       if (res.confirm) {
         try {
-          await deleteTask(taskId, true); // 硬删除
+          await deleteTask(parseInt(taskId), true); // 硬删除
           await showTrash(); // 刷新垃圾桶
           uni.showToast({
             title: '任务已永久删除',
@@ -626,12 +626,7 @@ function showSettings() {
   showSettingsModal.value = true;
 }
 		
-function onEnvironmentChange(e: any) {
-  environmentIndex.value = e.detail.value;
-  const environments = ['development', 'production', 'local'];
-  const { switchEnvironment } = require('../../config/index.ts');
-  switchEnvironment(environments[e.detail.value]);
-}
+
 		
 // 用户切换方法
 async function switchUser() {
@@ -1153,35 +1148,47 @@ async function exitRoom() {
 	}
 
 	.settings-list {
-		padding: 20rpx;
+		padding: 0;
 	}
 
 	.setting-item {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 20rpx 0;
+		padding: 30rpx 40rpx;
 		border-bottom: 1rpx solid #f1f3f5;
+		transition: background-color 0.2s ease;
+	}
+
+	.setting-item.clickable {
+		cursor: pointer;
+	}
+
+	.setting-item.clickable:active {
+		background-color: #f8f9fa;
+	}
+
+	.setting-content {
+		display: flex;
+		flex-direction: column;
+		gap: 4rpx;
 	}
 
 	.setting-label {
 		font-size: 28rpx;
 		color: #495057;
+		font-weight: 500;
 	}
 
 	.setting-value {
-		font-size: 26rpx;
+		font-size: 24rpx;
 		color: #6c757d;
 	}
-	
-	.setting-action {
-		font-size: 24rpx;
-		color: #007bff;
-		margin-left: 10rpx;
-	}
-	
-	.setting-item:active {
-		background-color: #f8f9fa;
+
+	.setting-arrow {
+		font-size: 28rpx;
+		color: #adb5bd;
+		font-weight: 300;
 	}
 	
 	.delete-btn:active {

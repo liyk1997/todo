@@ -53,13 +53,24 @@ async function createRoom() {
     // 跳转到Todo列表页面
     const url = `/pages/index/index?token=${room.token}&mode=create`;
     console.log('准备跳转到:', url);
-    uni.redirectTo({
+    uni.navigateTo({
       url,
       success: () => {
         console.log('跳转成功');
       },
       fail: (err) => {
         console.error('跳转失败:', err);
+        // 如果 navigateTo 失败，尝试 redirectTo
+        uni.redirectTo({
+          url,
+          fail: (err2) => {
+            console.error('redirectTo 也失败:', err2);
+            uni.showToast({
+              title: '页面跳转失败',
+              icon: 'none'
+            });
+          }
+        });
       },
     });
   } catch (error) {
@@ -107,13 +118,24 @@ async function joinRoom() {
     // 跳转到Todo列表页面
     const url = `/pages/index/index?token=${room.token}&mode=join`;
     console.log('准备跳转到:', url);
-    uni.redirectTo({
+    uni.navigateTo({
       url,
       success: () => {
         console.log('跳转成功');
       },
       fail: (err) => {
         console.error('跳转失败:', err);
+        // 如果 navigateTo 失败，尝试 redirectTo
+        uni.redirectTo({
+          url,
+          fail: (err2) => {
+            console.error('redirectTo 也失败:', err2);
+            uni.showToast({
+              title: '页面跳转失败',
+              icon: 'none'
+            });
+          }
+        });
       },
     });
   } catch (error) {

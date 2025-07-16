@@ -44,20 +44,26 @@ async def get_tasks(room_id: str):
 
 @app.post("/tasks", response_model=Task)
 async def create_task(task: TaskCreate):
-    new_task = await Database.create_task(
-        text=task.text,
-        creator=task.creator,
-        room_id=task.room_id,
-        priority=task.priority,
-        due_date=task.due_date,
-        tags=task.tags,
-        description=task.description
-    )
-    await manager.broadcast_to_room(
-        room_id=task.room_id,
-        message={"type": "task_created", "task": dict(new_task)}
-    )
-    return new_task
+    try:
+        print(f"Received task data: {task.dict()}")
+        new_task = await Database.create_task(
+            text=task.text,
+            creator=task.creator,
+            room_id=task.room_id,
+            priority=task.priority,
+            due_date=task.due_date,
+            tags=task.tags,
+            description=task.description
+        )
+        await manager.broadcast_to_room(
+            room_id=task.room_id,
+            message={"type": "task_created", "task": dict(new_task)}
+        )
+        return new_task
+    except Exception as e:
+        print(f"Error creating task: {str(e)}")
+        print(f"Task data: {task.dict()}")
+        raise HTTPException(status_code=422, detail=str(e))
 
 @app.put("/tasks/{task_id}", response_model=Optional[Task])
 async def update_task(task_id: int, task_update: TaskUpdate):
