@@ -127,6 +127,11 @@
 					<text class="modal-close" @click="showSettingsModal = false">×</text>
 				</view>
 				<view class="settings-list">
+					<view class="setting-item" @click="switchUser">
+						<text class="setting-label">当前用户:</text>
+						<text class="setting-value">{{ userName }}</text>
+						<text class="setting-action">点击切换</text>
+					</view>
 					<view class="setting-item">
 						<text class="setting-label">当前环境:</text>
 						<picker @change="onEnvironmentChange" :value="environmentIndex" :range="environmentOptions">
@@ -143,8 +148,8 @@
 	</view>
 </template>
 
-<script lang="ts">
-import Vue from 'vue';
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
 	Task,
 	TaskCreate,
@@ -160,533 +165,551 @@ import {
 	getTrashTasks,
 	restoreTask
 } from '../../api/todo';
-import { config } from '../../config';
 
-export default Vue.extend({
-	data() {
-		return {
-			newTask: '',
-			tasks: [] as Task[],
-			roomToken: '',
-			userName: '',
-			mode: 'create',
-			// 任务表单相关
-			showTaskForm: false,
-			taskForm: {
-				text: '',
-				description: '',
-				priority: 'medium',
-				due_date: '',
-				tags: [] as string[]
-			},
-			tagInput: '',
-			// 筛选相关
-			priorityFilterIndex: 0,
-			priorityFilterOptions: ['全部', '高', '中', '低'],
-			statusFilterIndex: 0,
-			statusFilterOptions: ['全部', '未完成', '已完成'],
-			// 垃圾桶相关
-			showTrashModal: false,
-			trashTasks: [] as Task[],
-			trashCount: 0,
-			// 设置相关
-			showSettingsModal: false,
-			environmentIndex: 0,
-			environmentOptions: ['开发环境', '生产环境', '本地环境'],
-			// 优先级相关
-			priorityIndex: 1,
-			priorityOptions: ['high', 'medium', 'low'],
-			priorityLabels: {
-				high: '高',
-				medium: '中',
-				low: '低'
-			},
-			config: config,
-			// 编辑任务相关
-			editingTaskId: null
-		}
-	},
-		computed: {
-			filteredTasks() {
-				let filtered = (this as any).tasks.filter((task: Task) => !task.is_deleted);
-				
-				// 优先级筛选
-				if ((this as any).priorityFilterIndex > 0) {
-					const priorityMap: any = { 1: 'high', 2: 'medium', 3: 'low' };
-					filtered = filtered.filter((task: Task) => task.priority === priorityMap[(this as any).priorityFilterIndex]);
-				}
-				
-				// 状态筛选
-				if ((this as any).statusFilterIndex === 1) {
-					filtered = filtered.filter((task: Task) => !task.completed);
-				} else if ((this as any).statusFilterIndex === 2) {
-					filtered = filtered.filter((task: Task) => task.completed);
-				}
-				
-				// 按优先级和截止日期排序
-				return filtered.sort((a: Task, b: Task) => {
-					// 首先按完成状态排序（未完成在前）
-					if (a.completed !== b.completed) {
-						return a.completed ? 1 : -1;
-					}
-					
-					// 然后按优先级排序
-					const priorityOrder: any = { high: 3, medium: 2, low: 1 };
-					const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
-					if (priorityDiff !== 0) return priorityDiff;
-					
-					// 最后按截止日期排序
-					if (a.due_date && b.due_date) {
-						return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-					}
-					if (a.due_date) return -1;
-					if (b.due_date) return 1;
-					return 0;
-				});
-			}
-		},
-		onLoad(options) {
-		console.log('index onLoad 收到参数:', options);
-		
-		if (options && options.token) {
-			console.log('收到有效的 token:', options.token);
-			this.roomToken = options.token;
-			this.mode = options.mode || 'create';
-			console.log('设置 mode:', this.mode);
-			this.initRoom();
-		} else {
-			console.warn('没有收到 token，准备跳转回房间页面');
-			uni.redirectTo({ 
-				url: '/pages/room/room',
-				success: () => {
-					console.log('跳转回房间页面成功');
-				},
-				fail: (err) => {
-					console.error('跳转回房间页面失败:', err);
-				}
-			});
-		}
-	},
-	onUnload() {
-			stopPolling();
-		},
+const config = { pollingInterval: 3000 }; // Temporary config
 
-	async onPullDownRefresh() {
-		console.log('开始下拉刷新');
-		try {
-			this.tasks = await getRoomTasks(this.roomToken);
-			console.log('刷新任务列表成功');
-		} catch (error) {
-			console.error('刷新任务列表失败:', error);
-			uni.showToast({
-				title: '刷新任务列表失败',
-				icon: 'none'
-			});
-		} finally {
-			uni.stopPullDownRefresh();
-		}
-	},
-	methods: {
-			async initRoom() {
-				// 获取或设置用户名
-				this.userName = await this.getUserName();
-
-				// 获取现有任务列表
-				try {
-					this.tasks = await getRoomTasks(this.roomToken);
-					await this.loadTrashCount();
-					
-					// 开始轮询任务列表
-					startPolling(this.roomToken, (tasks) => {
-						this.tasks = tasks;
-						this.loadTrashCount();
-					});
-				} catch (error) {
-					console.error('获取任务列表失败:', error);
-					uni.showToast({
-						title: '获取任务列表失败',
-						icon: 'none'
-					});
-				}
-			},
-			
-			async loadTrashCount() {
-				try {
-					const response = await getTrashTasks(this.roomToken);
-					this.trashCount = response.length;
-				} catch (error) {
-					console.error('获取垃圾桶数量失败:', error);
-				}
-			},
-			
-			async loadTasks() {
-				try {
-					const response = await getRoomTasks(this.roomToken);
-					this.tasks = response;
-					await this.loadTrashCount();
-				} catch (error) {
-					console.error('获取任务失败:', error);
-					uni.showToast({
-						title: '获取任务失败',
-						icon: 'none'
-					});
-				}
-			},
-		async getUserName() {
-			// 从本地存储获取用户名，如果没有则提示输入
-			let name = uni.getStorageSync('userName');
-			if (!name) {
-				await new Promise((resolve) => {
-					uni.showModal({
-						title: '请输入您的名字',
-						editable: true,
-						success: (res) => {
-							if (res.confirm && res.content) {
-								name = res.content;
-								uni.setStorageSync('userName', name);
-							}
-							resolve(null);
-						}
-					});
-				});
-			}
-			return name || '匿名用户';
-		},
-		// 任务表单相关方法
-		showTaskDetail(task) {
-			// 显示任务详情（可以扩展为编辑功能）
-			console.log('显示任务详情:', task);
-		},
-		
-		cancelTaskForm() {
-				this.showTaskForm = false;
-				this.editingTaskId = null;
-				this.resetTaskForm();
-			},
-		
-		resetTaskForm() {
-			this.taskForm = {
-				text: '',
-				description: '',
-				priority: 'medium',
-				due_date: '',
-				tags: []
-			};
-			this.tagInput = '';
-			this.priorityIndex = 1;
-		},
-		
-		addTag() {
-			if (this.tagInput.trim() && !this.taskForm.tags.includes(this.tagInput.trim())) {
-				this.taskForm.tags.push(this.tagInput.trim());
-				this.tagInput = '';
-			}
-		},
-		
-		removeTag(index) {
-			this.taskForm.tags.splice(index, 1);
-		},
-		
-		onPriorityChange(e) {
-			this.priorityIndex = e.detail.value;
-			this.taskForm.priority = this.priorityOptions[e.detail.value];
-		},
-		
-		onDateChange(e) {
-			this.taskForm.due_date = e.detail.value;
-		},
-		
-		async submitTask() {
-				if (!this.taskForm.text.trim()) {
-					uni.showToast({
-						title: '请输入任务标题',
-						icon: 'none'
-					});
-					return;
-				}
-				
-				try {
-					if (this.editingTaskId) {
-						// 编辑任务
-					const updateData: any = {
-						text: this.taskForm.text,
-						description: this.taskForm.description,
-						priority: this.taskForm.priority as 'low' | 'medium' | 'high' | 'urgent',
-						tags: this.taskForm.tags
-					};
-					
-					if (this.taskForm.due_date) {
-						updateData.due_date = this.taskForm.due_date;
-					}
-						
-						await updateTask(this.editingTaskId, updateData);
-						
-						uni.showToast({
-							title: '更新成功',
-							icon: 'success'
-						});
-					} else {
-						// 创建新任务
-					const taskData: any = {
-						room_id: this.roomToken,
-						text: this.taskForm.text,
-						creator: this.userName,
-						description: this.taskForm.description,
-						priority: this.taskForm.priority as 'low' | 'medium' | 'high' | 'urgent',
-						tags: this.taskForm.tags
-					};
-					
-					if (this.taskForm.due_date) {
-						taskData.due_date = this.taskForm.due_date;
-					}
-						
-						await createTask(taskData);
-						
-						uni.showToast({
-							title: '添加成功',
-							icon: 'success'
-						});
-					}
-					
-					this.cancelTaskForm();
-					await this.loadTasks();
-				} catch (error) {
-					console.error('操作失败:', error);
-					uni.showToast({
-						title: this.editingTaskId ? '更新失败' : '添加失败',
-						icon: 'none'
-					});
-				}
-			},
-		
-		async addTask() {
-			if (!this.newTask.trim()) {
-				this.showTaskForm = true;
-				this.taskForm.text = this.newTask;
-				return;
-			}
-			
-			try {
-				await createTask({
-					room_id: this.roomToken,
-					text: this.newTask,
-					creator: this.userName,
-					priority: 'medium' as 'medium'
-				});
-				
-				this.newTask = '';
-				
-				uni.showToast({
-					title: '添加成功',
-					icon: 'success'
-				});
-			} catch (error) {
-				console.error('添加任务失败:', error);
-				uni.showToast({
-					title: '添加任务失败',
-					icon: 'none'
-				});
-			}
-		},
-		// 任务操作相关方法
-		async quickToggleTask(taskId) {
-			try {
-				await toggleTask(taskId);
-				await this.loadTasks();
-			} catch (error) {
-				console.error('切换任务状态失败:', error);
-				uni.showToast({
-					title: '操作失败',
-					icon: 'none'
-				});
-			}
-		},
-		
-		async toggleTask(taskId) {
-			try {
-				const task = this.tasks.find(t => t.id === taskId);
-				if (task) {
-					await updateTask(taskId, {
-						completed: !task.completed
-					});
-					await this.loadTasks();
-				}
-			} catch (error) {
-				console.error('更新任务状态失败:', error);
-				uni.showToast({
-					title: '更新任务状态失败',
-					icon: 'none'
-				});
-			}
-		},
-		
-		editTask(task) {
-			// 编辑任务功能
-			this.taskForm = {
-				text: task.text,
-				description: task.description || '',
-				priority: task.priority || 'medium',
-				due_date: task.due_date || '',
-				tags: task.tags || []
-			};
-			this.priorityIndex = this.priorityOptions.indexOf(task.priority || 'medium');
-			this.showTaskForm = true;
-			this.editingTaskId = task.id;
-		},
-
-		async deleteTask(taskId) {
-			try {
-				await deleteTask(taskId, false); // 软删除
-				await this.loadTasks();
-				uni.showToast({
-					title: '已移至垃圾桶',
-					icon: 'success'
-				});
-			} catch (error) {
-				console.error('删除任务失败:', error);
-				uni.showToast({
-					title: '删除任务失败',
-					icon: 'none'
-				});
-			}
-		},
-		
-		// 垃圾桶相关方法
-		async showTrash() {
-				try {
-					const response = await getTrashTasks(this.roomToken);
-					this.trashTasks = response;
-					this.showTrashModal = true;
-				} catch (error) {
-					console.error('获取垃圾桶失败:', error);
-					uni.showToast({
-						title: '获取垃圾桶失败',
-						icon: 'none'
-					});
-				}
-			},
-		
-		async restoreTaskFromTrash(taskId) {
-			try {
-				await restoreTask(taskId);
-				await this.showTrash(); // 刷新垃圾桶
-				await this.loadTasks(); // 刷新任务列表
-				uni.showToast({
-					title: '任务已恢复',
-					icon: 'success'
-				});
-			} catch (error) {
-				console.error('恢复任务失败:', error);
-				uni.showToast({
-					title: '恢复任务失败',
-					icon: 'none'
-				});
-			}
-		},
-		
-		async permanentDeleteTask(taskId) {
-			uni.showModal({
-				title: '确认删除',
-				content: '此操作将永久删除任务，无法恢复',
-				success: async (res) => {
-					if (res.confirm) {
-						try {
-							await deleteTask(taskId, true); // 硬删除
-							await this.showTrash(); // 刷新垃圾桶
-							uni.showToast({
-								title: '任务已永久删除',
-								icon: 'success'
-							});
-						} catch (error) {
-							console.error('永久删除任务失败:', error);
-							uni.showToast({
-								title: '删除失败',
-								icon: 'none'
-							});
-						}
-					}
-				}
-			});
-		},
-		
-		// 筛选相关方法
-		onPriorityFilterChange(e) {
-			this.priorityFilterIndex = e.detail.value;
-		},
-		
-		onStatusFilterChange(e) {
-			this.statusFilterIndex = e.detail.value;
-		},
-		
-		// 设置相关方法
-		showSettings() {
-			this.showSettingsModal = true;
-		},
-		
-		onEnvironmentChange(e) {
-			this.environmentIndex = e.detail.value;
-			const environments = ['development', 'production', 'local'];
-			const { switchEnvironment } = require('../../config/index.ts');
-			switchEnvironment(environments[e.detail.value]);
-		},
-		
-		// 工具方法
-		isOverdue(task) {
-			if (!task.due_date || task.completed) return false;
-			return new Date(task.due_date) < new Date();
-		},
-		
-		formatDate(dateStr) {
-			if (!dateStr) return '';
-			const date = new Date(dateStr);
-			return date.toLocaleDateString('zh-CN');
-		},
-		async exitRoom() {
-			try {
-				// 显示加载提示
-				uni.showLoading({
-					title: '退出房间中...'
-				});
-
-				// 停止轮询
-				stopPolling();
-
-				// 隐藏加载提示
-				uni.hideLoading();
-
-				// 显示成功提示
-				await new Promise<void>((resolve) => {
-					uni.showToast({
-						title: '已退出房间',
-						icon: 'success',
-						duration: 1500,
-						success: () => {
-							setTimeout(resolve, 1500);
-						}
-					});
-				});
-
-				// 跳转回房间页面
-				console.log('准备跳转回房间页面');
-				uni.redirectTo({
-					url: '/pages/room/room',
-					success: () => {
-						console.log('跳转回房间页面成功');
-					},
-					fail: (err) => {
-						console.error('跳转回房间页面失败:', err);
-					}
-				});
-			} catch (error) {
-				console.error('退出房间失败:', error);
-				uni.showToast({
-					title: '退出房间失败',
-					icon: 'none'
-				});
-			}
-		}
-	}
+const newTask = ref('');
+const tasks = ref<Task[]>([]);
+const roomToken = ref('');
+const userName = ref('');
+const mode = ref('create');
+const showTaskForm = ref(false);
+const taskForm = ref({
+  text: '',
+  description: '',
+  priority: 'medium',
+  due_date: '',
+  tags: [] as string[],
 });
+const tagInput = ref('');
+const priorityFilterIndex = ref(0);
+const priorityFilterOptions = ['全部', '高', '中', '低'];
+const statusFilterIndex = ref(0);
+const statusFilterOptions = ['全部', '未完成', '已完成'];
+const showTrashModal = ref(false);
+const trashTasks = ref<Task[]>([]);
+const trashCount = ref(0);
+const showSettingsModal = ref(false);
+const environmentIndex = ref(0);
+const environmentOptions = ['开发环境', '生产环境', '本地环境'];
+const priorityIndex = ref(1);
+const priorityOptions = ['high', 'medium', 'low'];
+const priorityLabels = {
+  high: '高',
+  medium: '中',
+  low: '低',
+};
+const editingTaskId = ref(null);
+
+const filteredTasks = computed(() => {
+  let filtered = tasks.value.filter((task: Task) => !task.is_deleted);
+
+  // 优先级筛选
+  if (priorityFilterIndex.value > 0) {
+    const priorityMap: any = { 1: 'high', 2: 'medium', 3: 'low' };
+    filtered = filtered.filter((task: Task) => task.priority === priorityMap[priorityFilterIndex.value]);
+  }
+
+  // 状态筛选
+  if (statusFilterIndex.value === 1) {
+    filtered = filtered.filter((task: Task) => !task.completed);
+  } else if (statusFilterIndex.value === 2) {
+    filtered = filtered.filter((task: Task) => task.completed);
+  }
+
+  // 按优先级和截止日期排序
+  return filtered.sort((a: Task, b: Task) => {
+    // 首先按完成状态排序（未完成在前）
+    if (a.completed !== b.completed) {
+      return a.completed ? 1 : -1;
+    }
+
+    // 然后按优先级排序
+    const priorityOrder: any = { high: 3, medium: 2, low: 1 };
+    const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+
+    // 最后按截止日期排序
+    if (a.due_date && b.due_date) {
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    }
+    if (a.due_date) return -1;
+    if (b.due_date) return 1;
+    return 0;
+  });
+});
+
+onLoad((options: any) => {
+  console.log('index onLoad 收到参数:', options);
+
+  if (options && options.token) {
+    console.log('收到有效的 token:', options.token);
+    roomToken.value = options.token;
+    mode.value = options.mode || 'create';
+    console.log('设置 mode:', mode.value);
+    initRoom();
+  } else {
+    console.warn('没有收到 token，准备跳转回房间页面');
+    uni.redirectTo({
+      url: '/pages/room/room',
+      success: () => {
+        console.log('跳转回房间页面成功');
+      },
+      fail: (err) => {
+        console.error('跳转回房间页面失败:', err);
+      },
+    });
+  }
+});
+
+onUnmounted(() => {
+  stopPolling();
+});
+
+onPullDownRefresh(async () => {
+  console.log('开始下拉刷新');
+  try {
+    tasks.value = await getRoomTasks(roomToken.value);
+    console.log('刷新任务列表成功');
+  } catch (error) {
+    console.error('刷新任务列表失败:', error);
+    uni.showToast({
+      title: '刷新任务列表失败',
+      icon: 'none',
+    });
+  } finally {
+    uni.stopPullDownRefresh();
+  }
+});
+
+async function initRoom() {
+  // 获取或设置用户名
+  userName.value = await getUserName();
+
+  // 获取现有任务列表
+  try {
+    tasks.value = await getRoomTasks(roomToken.value);
+    await loadTrashCount();
+
+    // 开始轮询任务列表
+    startPolling(roomToken.value, (newTasks) => {
+      tasks.value = newTasks;
+      loadTrashCount();
+    });
+  } catch (error) {
+    console.error('获取任务列表失败:', error);
+    uni.showToast({
+      title: '获取任务列表失败',
+      icon: 'none',
+    });
+  }
+}
+			
+async function loadTrashCount() {
+  try {
+    const response = await getTrashTasks(roomToken.value);
+    trashCount.value = response.length;
+  } catch (error) {
+    console.error('获取垃圾桶数量失败:', error);
+  }
+}
+			
+async function loadTasks() {
+  try {
+    const response = await getRoomTasks(roomToken.value);
+    tasks.value = response;
+    await loadTrashCount();
+  } catch (error) {
+    console.error('获取任务失败:', error);
+    uni.showToast({
+      title: '获取任务失败',
+      icon: 'none',
+    });
+  }
+}
+async function getUserName() {
+  // 从本地存储获取用户名，如果没有则提示输入
+  let name = uni.getStorageSync('todoAppUser');
+  if (!name) {
+    await new Promise((resolve) => {
+      uni.showModal({
+        title: '欢迎使用Todo应用',
+        content: '请输入您的姓名开始使用',
+        editable: true,
+        placeholderText: '请输入您的姓名',
+        success: (res) => {
+          if (res.confirm && res.content && res.content.trim()) {
+            name = res.content.trim();
+            uni.setStorageSync('todoAppUser', name);
+            uni.showToast({
+              title: `欢迎，${name}！`,
+              icon: 'success',
+            });
+          } else {
+            name = '匿名用户';
+          }
+          resolve(null);
+        },
+      });
+    });
+  }
+  return name || '匿名用户';
+}
+// 任务表单相关方法
+function showTaskDetail(task: Task) {
+  // 显示任务详情（可以扩展为编辑功能）
+  console.log('显示任务详情:', task);
+}
+		
+function cancelTaskForm() {
+  showTaskForm.value = false;
+  editingTaskId.value = null;
+  resetTaskForm();
+}
+		
+function resetTaskForm() {
+  taskForm.value = {
+    text: '',
+    description: '',
+    priority: 'medium',
+    due_date: '',
+    tags: [],
+  };
+  tagInput.value = '';
+  priorityIndex.value = 1;
+}
+		
+function addTag() {
+  if (tagInput.value.trim() && !taskForm.value.tags.includes(tagInput.value.trim())) {
+    taskForm.value.tags.push(tagInput.value.trim());
+    tagInput.value = '';
+  }
+}
+		
+function removeTag(index: number) {
+  taskForm.value.tags.splice(index, 1);
+}
+		
+function onPriorityChange(e: any) {
+  priorityIndex.value = e.detail.value;
+  taskForm.value.priority = priorityOptions[e.detail.value];
+}
+		
+function onDateChange(e: any) {
+  taskForm.value.due_date = e.detail.value;
+}
+		
+async function submitTask() {
+  if (!taskForm.value.text.trim()) {
+    uni.showToast({
+      title: '请输入任务标题',
+      icon: 'none',
+    });
+    return;
+  }
+
+  try {
+    if (editingTaskId.value) {
+      // 编辑任务
+      const updateData: any = {
+        text: taskForm.value.text,
+        description: taskForm.value.description,
+        priority: taskForm.value.priority as 'low' | 'medium' | 'high' | 'urgent',
+        tags: taskForm.value.tags,
+      };
+
+      if (taskForm.value.due_date) {
+        updateData.due_date = taskForm.value.due_date;
+      }
+
+      await updateTask(editingTaskId.value, updateData);
+
+      uni.showToast({
+        title: '更新成功',
+        icon: 'success',
+      });
+    } else {
+      // 创建新任务
+      const taskData: any = {
+        room_id: roomToken.value,
+        text: taskForm.value.text,
+        creator: userName.value,
+        description: taskForm.value.description,
+        priority: taskForm.value.priority as 'low' | 'medium' | 'high' | 'urgent',
+        tags: taskForm.value.tags,
+      };
+
+      if (taskForm.value.due_date) {
+        taskData.due_date = taskForm.value.due_date;
+      }
+
+      await createTask(taskData);
+
+      uni.showToast({
+        title: '添加成功',
+        icon: 'success',
+      });
+    }
+
+    cancelTaskForm();
+    await loadTasks();
+  } catch (error) {
+    console.error('操作失败:', error);
+    uni.showToast({
+      title: editingTaskId.value ? '更新失败' : '添加失败',
+      icon: 'none',
+    });
+  }
+}
+		
+async function addTask() {
+  if (!newTask.value.trim()) {
+    showTaskForm.value = true;
+    taskForm.value.text = newTask.value;
+    return;
+  }
+
+  try {
+    await createTask({
+      room_id: roomToken.value,
+      text: newTask.value,
+      creator: userName.value,
+      priority: 'medium' as 'medium',
+    });
+
+    newTask.value = '';
+
+    uni.showToast({
+      title: '添加成功',
+      icon: 'success',
+    });
+  } catch (error) {
+    console.error('添加任务失败:', error);
+    uni.showToast({
+      title: '添加任务失败',
+      icon: 'none',
+    });
+  }
+}
+// 任务操作相关方法
+async function quickToggleTask(taskId: string) {
+  try {
+    await toggleTask(taskId);
+    await loadTasks();
+  } catch (error) {
+    console.error('切换任务状态失败:', error);
+    uni.showToast({
+      title: '操作失败',
+      icon: 'none',
+    });
+  }
+}
+		
+async function toggleTask(taskId: string) {
+  try {
+    const task = tasks.value.find(t => t.id === taskId);
+    if (task) {
+      await updateTask(taskId, {
+        completed: !task.completed,
+      });
+      await loadTasks();
+    }
+  } catch (error) {
+    console.error('更新任务状态失败:', error);
+    uni.showToast({
+      title: '更新任务状态失败',
+      icon: 'none',
+    });
+  }
+}
+		
+function editTask(task: Task) {
+  // 编辑任务功能
+  taskForm.value = {
+    text: task.text,
+    description: task.description || '',
+    priority: task.priority || 'medium',
+    due_date: task.due_date || '',
+    tags: task.tags || [],
+  };
+  priorityIndex.value = priorityOptions.indexOf(task.priority || 'medium');
+  showTaskForm.value = true;
+  editingTaskId.value = task.id;
+}
+
+async function deleteTask(taskId: string) {
+  try {
+    await deleteTask(taskId, false); // 软删除
+    await loadTasks();
+    uni.showToast({
+      title: '已移至垃圾桶',
+      icon: 'success',
+    });
+  } catch (error) {
+    console.error('删除任务失败:', error);
+    uni.showToast({
+      title: '删除任务失败',
+      icon: 'none',
+    });
+  }
+}
+		
+// 垃圾桶相关方法
+async function showTrash() {
+  try {
+    const response = await getTrashTasks(roomToken.value);
+    trashTasks.value = response;
+    showTrashModal.value = true;
+  } catch (error) {
+    console.error('获取垃圾桶失败:', error);
+    uni.showToast({
+      title: '获取垃圾桶失败',
+      icon: 'none',
+    });
+  }
+}
+		
+async function restoreTaskFromTrash(taskId: string) {
+  try {
+    await restoreTask(taskId);
+    await showTrash(); // 刷新垃圾桶
+    await loadTasks(); // 刷新任务列表
+    uni.showToast({
+      title: '任务已恢复',
+      icon: 'success',
+    });
+  } catch (error) {
+    console.error('恢复任务失败:', error);
+    uni.showToast({
+      title: '恢复任务失败',
+      icon: 'none',
+    });
+  }
+}
+		
+async function permanentDeleteTask(taskId: string) {
+  uni.showModal({
+    title: '确认删除',
+    content: '此操作将永久删除任务，无法恢复',
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          await deleteTask(taskId, true); // 硬删除
+          await showTrash(); // 刷新垃圾桶
+          uni.showToast({
+            title: '任务已永久删除',
+            icon: 'success',
+          });
+        } catch (error) {
+          console.error('永久删除任务失败:', error);
+          uni.showToast({
+            title: '删除失败',
+            icon: 'none',
+          });
+        }
+      }
+    },
+  });
+}
+		
+// 筛选相关方法
+function onPriorityFilterChange(e: any) {
+  priorityFilterIndex.value = e.detail.value;
+}
+		
+function onStatusFilterChange(e: any) {
+  statusFilterIndex.value = e.detail.value;
+}
+		
+// 设置相关方法
+function showSettings() {
+  showSettingsModal.value = true;
+}
+		
+function onEnvironmentChange(e: any) {
+  environmentIndex.value = e.detail.value;
+  const environments = ['development', 'production', 'local'];
+  const { switchEnvironment } = require('../../config/index.ts');
+  switchEnvironment(environments[e.detail.value]);
+}
+		
+// 用户切换方法
+async function switchUser() {
+  uni.showModal({
+    title: '切换用户',
+    content: '请输入新的用户名',
+    editable: true,
+    placeholderText: '请输入您的姓名',
+    success: (res) => {
+      if (res.confirm && res.content && res.content.trim()) {
+        const newName = res.content.trim();
+        uni.setStorageSync('todoAppUser', newName);
+        userName.value = newName;
+        showSettingsModal.value = false;
+        uni.showToast({
+          title: `已切换到用户：${newName}`,
+          icon: 'success',
+        });
+      }
+    },
+  });
+}
+		
+// 工具方法
+function isOverdue(task: Task) {
+  if (!task.due_date || task.completed) return false;
+  return new Date(task.due_date) < new Date();
+}
+		
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('zh-CN');
+}
+async function exitRoom() {
+  try {
+    // 显示加载提示
+    uni.showLoading({
+      title: '退出房间中...',
+    });
+
+    // 停止轮询
+    stopPolling();
+
+    // 隐藏加载提示
+    uni.hideLoading();
+
+    // 显示成功提示
+    await new Promise<void>((resolve) => {
+      uni.showToast({
+        title: '已退出房间',
+        icon: 'success',
+        duration: 1500,
+        success: () => {
+          setTimeout(resolve, 1500);
+        },
+      });
+    });
+
+    // 跳转回房间页面
+    console.log('准备跳转回房间页面');
+    uni.redirectTo({
+      url: '/pages/room/room',
+      success: () => {
+        console.log('跳转回房间页面成功');
+      },
+      fail: (err) => {
+        console.error('跳转回房间页面失败:', err);
+      },
+    });
+  } catch (error) {
+    console.error('退出房间失败:', error);
+    uni.showToast({
+      title: '退出房间失败',
+      icon: 'none',
+    });
+  }
+}
 </script>
 
 <style>
@@ -1150,6 +1173,17 @@ export default Vue.extend({
 		font-size: 26rpx;
 		color: #6c757d;
 	}
+	
+	.setting-action {
+		font-size: 24rpx;
+		color: #007bff;
+		margin-left: 10rpx;
+	}
+	
+	.setting-item:active {
+		background-color: #f8f9fa;
+	}
+	
 	.delete-btn:active {
 		background-color: #ffe3e3;
 	}

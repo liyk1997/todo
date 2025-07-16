@@ -44,5 +44,4 @@ backend/*.db
 README.md
 
 # Package files
-package-lock.json
 yarn.lock

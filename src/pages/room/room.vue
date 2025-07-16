@@ -19,117 +19,111 @@
 	</view>
 </template>
 
-<script lang="ts">
-import Vue, { ComponentOptions } from 'vue';
+<script setup lang="ts">
+import { ref } from 'vue';
 import { createRoom as apiCreateRoom, joinRoom as apiJoinRoom } from '../../api/todo';
 
-export default Vue.extend({
-	data() {
-		return {
-			roomToken: ''
-		}
-	},
-	methods: {
-		async createRoom() {
-			try {
-				// 显示加载提示
-				uni.showLoading({
-					title: '创建房间中...'
-				});
+const roomToken = ref('');
 
-				const room = await apiCreateRoom();
-				console.log('房间创建成功，token:', room.token);
+async function createRoom() {
+  try {
+    // 显示加载提示
+    uni.showLoading({
+      title: '创建房间中...',
+    });
 
-				// 隐藏加载提示
-				uni.hideLoading();
+    const room = await apiCreateRoom();
+    console.log('房间创建成功，token:', room.token);
 
-				// 显示成功提示
-				await new Promise<void>((resolve) => {
-					uni.showToast({
-						title: '房间创建成功，令牌：' + room.token,
-						icon: 'none',
-						duration: 1500,
-						success: () => {
-							setTimeout(resolve, 1500);
-						}
-					});
-				});
+    // 隐藏加载提示
+    uni.hideLoading();
 
-				// 跳转到Todo列表页面
-				const url = `/pages/index/index?token=${room.token}&mode=create`;
-				console.log('准备跳转到:', url);
-				uni.redirectTo({
-					url,
-					success: () => {
-						console.log('跳转成功');
-					},
-					fail: (err) => {
-						console.error('跳转失败:', err);
-					}
-				});
-			} catch (error) {
-				console.error('创建房间失败:', error);
-				uni.showToast({
-					title: '创建房间失败',
-					icon: 'none'
-				});
-			}
-		},
-		async joinRoom() {
-			if (!this.roomToken.trim()) {
-				uni.showToast({
-					title: '请输入房间令牌',
-					icon: 'none'
-				});
-				return;
-			}
+    // 显示成功提示
+    await new Promise<void>((resolve) => {
+      uni.showToast({
+        title: '房间创建成功，令牌：' + room.token,
+        icon: 'none',
+        duration: 1500,
+        success: () => {
+          setTimeout(resolve, 1500);
+        },
+      });
+    });
 
-			try {
-				// 显示加载提示
-				uni.showLoading({
-					title: '加入房间中...'
-				});
+    // 跳转到Todo列表页面
+    const url = `/pages/index/index?token=${room.token}&mode=create`;
+    console.log('准备跳转到:', url);
+    uni.redirectTo({
+      url,
+      success: () => {
+        console.log('跳转成功');
+      },
+      fail: (err) => {
+        console.error('跳转失败:', err);
+      },
+    });
+  } catch (error) {
+    console.error('创建房间失败:', error);
+    uni.showToast({
+      title: '创建房间失败',
+      icon: 'none',
+    });
+  }
+}
 
-				const room = await apiJoinRoom(this.roomToken);
-				console.log('加入房间成功，token:', room.token);
+async function joinRoom() {
+  if (!roomToken.value.trim()) {
+    uni.showToast({
+      title: '请输入房间令牌',
+      icon: 'none',
+    });
+    return;
+  }
 
-				// 隐藏加载提示
-				uni.hideLoading();
+  try {
+    // 显示加载提示
+    uni.showLoading({
+      title: '加入房间中...',
+    });
 
-				// 显示成功提示
-				await new Promise<void>((resolve) => {
-					uni.showToast({
-						title: '加入房间成功',
-						icon: 'success',
-						duration: 1500,
-						success: () => {
-							setTimeout(resolve, 1500);
-						}
-					});
-				});
+    const room = await apiJoinRoom(roomToken.value);
+    console.log('加入房间成功，token:', room.token);
 
-				// 跳转到Todo列表页面
-				const url = `/pages/index/index?token=${room.token}&mode=join`;
-				console.log('准备跳转到:', url);
-				uni.redirectTo({
-					url,
-					success: () => {
-						console.log('跳转成功');
-					},
-					fail: (err) => {
-						console.error('跳转失败:', err);
-					}
-				});
-			} catch (error) {
-				console.error('加入房间失败:', error);
-				uni.showToast({
-					title: '房间不存在或已关闭',
-					icon: 'none'
-				});
-			}
-		}
-	}
-});
+    // 隐藏加载提示
+    uni.hideLoading();
+
+    // 显示成功提示
+    await new Promise<void>((resolve) => {
+      uni.showToast({
+        title: '加入房间成功',
+        icon: 'success',
+        duration: 1500,
+        success: () => {
+          setTimeout(resolve, 1500);
+        },
+      });
+    });
+
+    // 跳转到Todo列表页面
+    const url = `/pages/index/index?token=${room.token}&mode=join`;
+    console.log('准备跳转到:', url);
+    uni.redirectTo({
+      url,
+      success: () => {
+        console.log('跳转成功');
+      },
+      fail: (err) => {
+        console.error('跳转失败:', err);
+      },
+    });
+  } catch (error) {
+    console.error('加入房间失败:', error);
+    uni.showToast({
+      title: '房间不存在或已关闭',
+      icon: 'none',
+    });
+  }
+}
 </script>
 
 <style>

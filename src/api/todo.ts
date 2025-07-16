@@ -1,7 +1,7 @@
-import { ref } from '@vue/composition-api';
-import { config } from '../config';
+import { ref } from 'vue';
 
-const API_BASE = config.apiBaseUrl;
+// 根据环境自动选择 API 地址
+const API_BASE = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:8000';
 let ws: WebSocket | null = null;
 
 export interface Task {
@@ -47,7 +47,7 @@ export interface Room {
 }
 
 // 轮询间隔（毫秒）
-const POLLING_INTERVAL = config.pollingInterval;
+const POLLING_INTERVAL = 3000;
 
 // 轮询状态
 let pollingTimer: number | null = null;
