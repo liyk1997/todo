@@ -1,6 +1,29 @@
 {
   "name": "todo",
   "version": "0.1.0",
+  "description": "一个基于 Vue3 + FastAPI 的现代化多人协作任务管理应用，支持实时同步、多平台部署",
+  "keywords": [
+    "todo",
+    "task-management",
+    "vue3",
+    "fastapi",
+    "websocket",
+    "real-time",
+    "collaboration",
+    "uni-app",
+    "typescript",
+    "docker"
+  ],
+  "author": "liyk1997",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liyk1997/todo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/liyk1997/todo/issues"
+  },
+  "homepage": "https://github.com/liyk1997/todo#readme",
   "private": true,
   "scripts": {
     "dev": "uni",
