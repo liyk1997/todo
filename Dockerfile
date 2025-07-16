@@ -28,7 +28,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     nginx \
     supervisor \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/www/html \
+    && chown -R www-data:www-data /var/www/html
 
 # 复制后端代码和依赖文件
 COPY backend/ ./backend/
@@ -37,7 +39,7 @@ COPY backend/ ./backend/
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # 从前端构建阶段复制构建产物
-COPY --from=frontend-builder /app/dist/ /var/www/html/
+COPY --from=frontend-builder /app/dist/build/h5/ /var/www/html/
 
 # 复制Nginx配置文件
 COPY nginx.conf /etc/nginx/nginx.conf
